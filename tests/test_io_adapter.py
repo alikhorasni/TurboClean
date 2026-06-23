@@ -1,11 +1,7 @@
-from __future__ import annotations
-import tempfile
 from pathlib import Path
 import polars as pl
-import pyarrow as pa
 import pytest
 from pure_data.io_adapter import IOAdapter
-from pure_data.contracts import FileFormat
 
 class TestReadLazyFrame:
     def test_read_csv(self, tmp_path: Path) -> None:
@@ -35,16 +31,15 @@ class TestReadLazyFrame:
     def test_format_detection(self, tmp_path: Path) -> None:
         csv_file = tmp_path / "data.csv"
         csv_file.write_text("a\n1\n")
-        lf = IOAdapter.read_lazyframe(csv_file)  # auto-detect
+        lf = IOAdapter.read_lazyframe(csv_file)
         assert lf.collect().height == 1
 
     def test_eager_fallback_excel(self, tmp_path: Path) -> None:
-        # This test requires openpyxl; skip if not installed
         pytest.importorskip("openpyxl")
         excel_file = tmp_path / "test.xlsx"
         import pandas as pd
         pd.DataFrame({"num": [1, 2]}).to_excel(excel_file, index=False)
-        lf = IOAdapter.read_lazyframe(excel_file)  # detected as EXCEL
+        lf = IOAdapter.read_lazyframe(excel_file)
         assert lf.collect().shape == (2, 1)
 
 class TestEstimateRowCount:
