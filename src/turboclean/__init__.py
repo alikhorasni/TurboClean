@@ -19,7 +19,7 @@ from .profiling import DynamicProfiler
 from .reporting import ReportGenerator
 from .rule_factory import rule_factory
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 __all__ = [
     "DataPurityEngine",
     "DynamicProfiler",
