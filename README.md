@@ -139,16 +139,6 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed plugin development guideli
 
 ---
 
-## 🔮 Roadmap & Vision
-
-| Version | Feature |
-|---------|---------|
-| **v0.5** | Native Spark DataFrame I/O (via Arrow) and distributed profiling via Ray. |
-| **v0.7** | Continuous stream processing engine for real‑time data. |
-| **v1.0** | Interactive web‑based GUI for data profiling and rule discovery. |
-
----
-
 ## 🤝 Community & Support
 
 - **GitHub Issues:** [Report a bug or request a feature](https://github.com/AliKhorasni/TurboClean/issues)
