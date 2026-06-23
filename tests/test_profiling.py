@@ -1,4 +1,5 @@
-from pure_data.profiling import DynamicProfiler
+from turboclean.profiling import DynamicProfiler
+
 
 def test_drift_detection(large_dirty_df):
     profiler = DynamicProfiler(large_dirty_df.lazy())
