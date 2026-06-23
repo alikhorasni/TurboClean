@@ -1,7 +1,7 @@
 
-# PureData: The Enterprise-Grade Data Cleansing Engine
+# TurboClean: The Enterprise-Grade Data Cleansing Engine
 
-[![PyPI version](https://badge.fury.io/py/puredata.svg)](https://badge.fury.io/py/puredata)
+[![PyPI version](https://badge.fury.io/py/turboclean.svg)](https://badge.fury.io/py/turboclean)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 ![Benchmark](https://img.shields.io/badge/speed-5x%20faster%20than%20Pandas-success)
 ![License](https://img.shields.io/badge/License-MIT.svg)
@@ -18,11 +18,11 @@
 
 Data engineering teams spend **60-80% of their time** cleaning and preparing data. Traditional tools like Pandas choke on large datasets, while distributed systems like Spark introduce excessive latency and infrastructure costs.
 
-**PureData** eliminates this bottleneck. It delivers the speed of a distributed system with the simplicity of a local library, allowing you to process terabyte-scale data on a single machine with sub-minute latency.
+**TurboClean** eliminates this bottleneck. It delivers the speed of a distributed system with the simplicity of a local library, allowing you to process terabyte-scale data on a single machine with sub-minute latency.
 
 ---
 
-## 💡 Why Enterprises Choose PureData
+## 💡 Why Enterprises Choose TurboClean
 
 | Feature | Benefit |
 |---------|---------|
@@ -42,7 +42,7 @@ Data engineering teams spend **60-80% of their time** cleaning and preparing dat
 |--------------|----------|-------------|------------|-------------------------------|
 | Pandas       | 3h 12m   | OOM (128G)  | 4 MB/s     | $15.36                        |
 | Dask         | 28m 45s  | 68 GB       | 29 MB/s    | $2.30                         |
-| **PureData** | **6m 12s** | **2.1 GB**  | **132 MB/s** | **$0.50**                     |
+| **TurboClean** | **6m 12s** | **2.1 GB**  | **132 MB/s** | **$0.50**                     |
 
 > **Quantifiable ROI:** Reduce cloud compute costs by **78%** and time-to-insight by **80%** .
 
@@ -53,7 +53,7 @@ Data engineering teams spend **60-80% of their time** cleaning and preparing dat
 ### One-Line Cleaning Pipeline
 
 ```python
-from pure_data import DataPurityEngine
+from turboclean import DataPurityEngine
 
 # Production-grade cleaning in 5 lines
 engine = DataPurityEngine()
@@ -81,12 +81,12 @@ The engine automatically:
 
 ## 🧩 Advanced Customization: Strategy Pattern
 
-PureData is built for extensibility. Implement custom cleaning rules without forking the core library.
+TurboClean is built for extensibility. Implement custom cleaning rules without forking the core library.
 
 ### Example: Adaptive Clipping for Time-Series Data
 
 ```python
-from pure_data.contracts import CleanseRule
+from turboclean.contracts import CleanseRule
 import polars as pl
 
 class AdaptiveClipper(CleanseRule):
@@ -139,28 +139,27 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed plugin development guideli
 ## 📦 Installation
 
 ```bash
-pip install puredata
+pip install turboclean
 ```
 
 For development or edge features:
 
 ```bash
-pip install git+https://github.com/your-org/puredata.git@dev
+pip install git+https://github.com/your-org/turboclean.git@dev
 ```
 
 ---
 
 ## 🤝 Community & Support
 
-- **Documentation:** [docs.puredata.io](https://github.com/alikhorasni/puredata/docs)
-- **GitHub Issues:** [Report a bug or request a feature](https://github.com/alikhorasni/puredata/issues)
-- **Enterprise Support:** Contact us at `support@puredata.io` for SLA-backed support and custom feature development.
+- **GitHub Issues:** [Report a bug or request a feature](https://github.com/alikhorasni/turboclean/issues)
+- **Enterprise Support:** Contact us at `support@turboclean.io` for SLA-backed support and custom feature development.
 
 ---
 
 ## 📄 License
 
-PureData is released under the [MIT License](LICENSE).
+TurboClean is released under the [MIT License](LICENSE).
 
 ---
 
