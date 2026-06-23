@@ -1,4 +1,3 @@
-```markdown
 # TurboClean v0.4.0 — The Unbreakable Data Cleansing Engine
 
 [![PyPI version](https://badge.fury.io/py/turboclean.svg)](https://badge.fury.io/py/turboclean)
@@ -164,4 +163,3 @@ TurboClean is released under the [MIT License](LICENSE).
 ---
 
 **Built with ❤️ by engineers who believe data quality should never be a bottleneck — and who tested it until even the most sadistic DevOps couldn’t break it.**
-```
