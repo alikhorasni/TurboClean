@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "puredata"
 version = "0.3.0"
-description = "Ultra-fast, adaptive data purification engine that outpaces Pandas by 5x and handles 100+ GB files with zero-copy, lazy execution."
-authors = ["Your Name <email@example.com>"]
+description = "Ultra-fast, adaptive data purification engine that handle with zero-copy, lazy execution."
+authors = ["Your Name <alikhorasanishirehjeyni@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 packages = [{ include = "pure_data", from = "src" }]
@@ -41,6 +41,42 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "rich.*"
 ignore_missing_imports = true
+follow_imports = "normal"
+
+[[tool.mypy.overrides]]
+module = "polars"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "polars.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "pyarrow"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "pyarrow.*"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "yaml"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "pandas"
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = "rich.*"
+ignore_missing_imports = true
+follow_imports = "skip"
 
 [tool.ruff]
 line-length = 100
