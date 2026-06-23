@@ -26,11 +26,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install ".[all,dev]"
 
-      - name: Lint with Ruff
-        run: ruff check --fix src tests
+      - name: Auto-fix fixable lint issues
+        run: ruff check --fix --exit-zero src tests
 
-      - name: Format check with Ruff
+      - name: Auto-format code
         run: ruff format src tests
+
+      - name: Lint check for remaining issues
+        run: ruff check src tests
 
       - name: Type check with mypy
         run: mypy src
