@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
+
 import numpy as np
 import polars as pl
 import pytest
+
 from pure_data.engine import DataPurityEngine
 
 @pytest.fixture(scope="module")
 def large_dirty_df() -> pl.DataFrame:
-    """A 500k-row DataFrame with missing values, outliers, and drift."""
     np.random.seed(42)
     n = 500_000
     base = datetime(2020, 1, 1)
