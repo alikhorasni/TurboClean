@@ -49,7 +49,7 @@ class DynamicProfiler:
         sample = self._lf.fetch(1)
         schema = sample.to_arrow().schema
         columns = self._lf.columns
-        n_rows = self._lf.select(pl.len()).collect().item()  # type: ignore[attr-defined]
+        n_rows = self._lf.select(pl.len()).collect().item() 
 
         aggs = []
         for col in columns:
