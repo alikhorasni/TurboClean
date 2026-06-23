@@ -1,30 +1,29 @@
 from __future__ import annotations
-from typing import Union, Optional, List, TypeVar, Any
 from pathlib import Path
+from typing import Any, TypeVar
 import pyarrow as pa
 import polars as pl
-from .contracts import FileFormat, Connector, CleanseRule, DataProfile
+from .contracts import CleanseRule, Connector, DataProfile, FileFormat
 from .exceptions import EmptyDatasetError
 from .io_adapter import IOAdapter
 from .utils import benchmark
 
 Self = TypeVar("Self", bound="DataPurityEngine")
 
-
 class DataPurityEngine:
     """Core engine for intelligent data screening, cleaning, and quality improvement."""
 
     def __init__(self) -> None:
-        self._lf: Optional[pl.LazyFrame] = None
-        self._schema: Optional[pa.Schema] = None
-        self._profile: Optional[DataProfile] = None
-        self._rules: List[CleanseRule] = []
+        self._lf: pl.LazyFrame | None = None
+        self._schema: pa.Schema | None = None
+        self._profile: DataProfile | None = None
+        self._rules: list[CleanseRule] = []
 
     @benchmark
     def load(
         self,
-        source: Union[str, Path, Connector],
-        format: Optional[FileFormat] = None,
+        source: str | Path | Connector,
+        format: FileFormat | None = None,
         lazy: bool = True,
         **kwargs: Any,
     ) -> Self:
@@ -44,14 +43,13 @@ class DataPurityEngine:
         return self._schema
 
     @benchmark
-    def suggest_cleansing_rules(self) -> List[CleanseRule]:
+    def suggest_cleansing_rules(self) -> list[CleanseRule]:
         if self._lf is None:
             raise RuntimeError("No data loaded. Call load() first.")
         from .profiling import DynamicProfiler
-
         profiler = DynamicProfiler(self._lf)
         self._profile = profiler.generate_profile()
-        rules: List[CleanseRule] = []
+        rules: list[CleanseRule] = []
         for cprof in self._profile.column_profiles.values():
             rules.extend(cprof.suggested_rules)
         self._rules = rules
@@ -63,7 +61,7 @@ class DataPurityEngine:
         return self
 
     @benchmark
-    def clean(self, rules: Optional[List[CleanseRule]] = None) -> Self:
+    def clean(self, rules: list[CleanseRule] | None = None) -> Self:
         if self._lf is None:
             raise RuntimeError("No data loaded. Call load() first.")
         apply_rules = rules or self._rules
@@ -83,7 +81,7 @@ class DataPurityEngine:
             raise RuntimeError("No data loaded. Call load() first.")
         return self._lf.collect()
 
-    def write(self, destination: Union[str, Path], format: FileFormat) -> None:
+    def write(self, destination: str | Path, format: FileFormat) -> None:
         df = self._lf.collect() if self._lf is not None else pl.DataFrame()
         dest = Path(destination)
         if format == FileFormat.PARQUET:
