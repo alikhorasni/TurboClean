@@ -1,19 +1,18 @@
 from __future__ import annotations
 import mmap
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 import polars as pl
 import pyarrow.parquet as pq
-from .contracts import FileFormat, Connector
-
+from .contracts import Connector, FileFormat
 
 class IOAdapter:
     """Optimised I/O adapter with lazy scanning and row count estimation."""
 
     @staticmethod
     def read_lazyframe(
-        source: Union[str, Path, Connector],
-        fmt: Optional[FileFormat] = None,
+        source: str | Path | Connector,
+        fmt: FileFormat | None = None,
         **kwargs: Any,
     ) -> pl.LazyFrame:
         if isinstance(source, Connector):
@@ -33,7 +32,7 @@ class IOAdapter:
 
     @staticmethod
     def estimate_row_count(
-        source: Union[str, Path, Connector], fmt: Optional[FileFormat] = None
+        source: str | Path | Connector, fmt: FileFormat | None = None
     ) -> int:
         """Estimate row count without full scan (best effort)."""
         if isinstance(source, Connector):
@@ -69,16 +68,13 @@ class IOAdapter:
     def _read_eager(path: Path, fmt: FileFormat) -> pl.DataFrame:
         if fmt == FileFormat.EXCEL:
             import pandas as pd
-
             return pl.from_pandas(pd.read_excel(path))
         # Other formats will be added incrementally
         raise NotImplementedError(f"Eager reader for {fmt} not yet implemented")
 
     @staticmethod
     def _read_sql(connector: Connector, **kwargs: Any) -> pl.LazyFrame:
-        # Use a SQLAlchemy engine to read directly into Arrow
         import pandas as pd
-
         query = kwargs.get("query", "SELECT * FROM table")
         engine = connector  # assumed to be SQLAlchemy engine
         pdf = pd.read_sql(query, engine)
