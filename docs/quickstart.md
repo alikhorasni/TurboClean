@@ -1,5 +1,3 @@
-docs/quickstart.md
-markdown
 # Quickstart
 
 Install PureData:
