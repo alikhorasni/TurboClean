@@ -32,7 +32,7 @@ class DataPurityEngine:
         if not lazy:
             raise ValueError("TurboClean core only supports lazy=True")
         self._lf = IOAdapter.read_lazyframe(source, format, **kwargs)
-        if not self._lf.columns:
+        if not self._lf.collect_schema().names():
             raise EmptyDatasetError("The dataset has no columns.")
         return self
 
