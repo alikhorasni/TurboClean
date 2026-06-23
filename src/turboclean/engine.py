@@ -98,7 +98,7 @@ class DataPurityEngine:
             raise RuntimeError("No data loaded. Call load() first.")
         return self._lf.collect()
 
-    def write(self, destination: str | Path, format: Optional[FileFormat] = None) -> None:
+    def write(self, destination: str | Path, format: FileFormat|None = None) -> None:
         df = self._lf.collect() if self._lf is not None else pl.DataFrame()
         dest = Path(destination).resolve()                
         cwd = Path.cwd().resolve()
