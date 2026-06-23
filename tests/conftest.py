@@ -4,7 +4,8 @@ import numpy as np
 import polars as pl
 import pytest
 
-from pure_data.engine import DataPurityEngine
+from turboclean.engine import DataPurityEngine
+
 
 @pytest.fixture(scope="module")
 def large_dirty_df() -> pl.DataFrame:
