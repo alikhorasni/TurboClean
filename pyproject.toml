@@ -35,46 +35,9 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.mypy]
 strict = true
-[[tool.mypy.overrides]]
-module = "polars.*"
-ignore_missing_imports = true
-[[tool.mypy.overrides]]
-module = "rich.*"
-ignore_missing_imports = true
-follow_imports = "normal"
 
 [[tool.mypy.overrides]]
-module = "polars"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "polars.*"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "pyarrow"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "pyarrow.*"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "yaml"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "pandas"
-ignore_missing_imports = true
-follow_imports = "skip"
-
-[[tool.mypy.overrides]]
-module = "rich.*"
+module = ["polars", "polars.*", "pyarrow", "pyarrow.*", "yaml", "pandas", "rich.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 
