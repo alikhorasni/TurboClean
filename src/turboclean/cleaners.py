@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 import polars as pl
 
@@ -10,29 +11,45 @@ from .contracts import CleanseRule
 class MissingCleaner(CleanseRule):
     name = "missing_cleaner"
 
-    def __init__(self, column: str, strategy: str = "drop") -> None:
+    def __init__(self, column: str, strategy: str = "drop", fill_value: str = "unknown", numeric_fallback: float = 0.0) -> None:
         self.column = column
         self.strategy = strategy
-        self.parameters: dict[str, Any] = {"column": column, "strategy": strategy}
+        self.fill_value = fill_value
+        self.numeric_fallback = numeric_fallback
+        self.parameters: dict[str, Any] = {
+            "column": column,
+            "strategy": strategy,
+            "fill_value": fill_value,
+        }
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
+        col = pl.col(self.column)
         if self.strategy == "drop":
-            return lf.filter(pl.col(self.column).is_not_null())
+            return lf.filter(col.is_not_null())
         elif self.strategy == "mean":
-            mean_val = lf.select(pl.col(self.column).mean()).collect().item()
-            return lf.with_columns(pl.col(self.column).fill_null(mean_val))
+            mean_val = lf.select(col.mean()).collect().item()
+            if mean_val is None:
+                mean_val = self.numeric_fallback
+            return lf.with_columns(col.fill_null(mean_val))
         elif self.strategy == "median":
-            median_val = lf.select(pl.col(self.column).median()).collect().item()
-            return lf.with_columns(pl.col(self.column).fill_null(median_val))
+            median_val = lf.select(col.median()).collect().item()
+            if median_val is None:
+                median_val = self.numeric_fallback
+            return lf.with_columns(col.fill_null(median_val))
         elif self.strategy == "mode":
-            mode_val = lf.select(pl.col(self.column).mode().first()).collect().item()
-            return lf.with_columns(pl.col(self.column).fill_null(mode_val))
+            mode_val = lf.select(col.mode().first()).collect().item()
+            if mode_val is None:
+                mode_val = self.numeric_fallback
+            return lf.with_columns(col.fill_null(mode_val))
+        elif self.strategy == "fill":
+            return lf.with_columns(col.fill_null(self.fill_value))
         elif self.strategy == "forward_fill":
-            return lf.with_columns(pl.col(self.column).forward_fill())
+            return lf.with_columns(col.forward_fill())
         elif self.strategy == "backward_fill":
-            return lf.with_columns(pl.col(self.column).backward_fill())
+            return lf.with_columns(col.backward_fill())
         else:
             raise ValueError(f"Unknown missing strategy: {self.strategy}")
+
 
 class OutlierCleaner(CleanseRule):
     name = "outlier_cleaner"
@@ -44,32 +61,36 @@ class OutlierCleaner(CleanseRule):
         self.parameters = {"column": column, "method": method, "factor": factor}
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
+        col = pl.col(self.column)
         if self.method == "iqr":
-            q1 = lf.select(pl.col(self.column).quantile(0.25)).collect().item()
-            q3 = lf.select(pl.col(self.column).quantile(0.75)).collect().item()
+            q1 = lf.select(col.quantile(0.25)).collect().item()
+            q3 = lf.select(col.quantile(0.75)).collect().item()
             iqr = q3 - q1
             lower = q1 - self.factor * iqr
             upper = q3 + self.factor * iqr
             return lf.with_columns(
-                pl.when(pl.col(self.column) < lower)
+                pl.when(col < lower)
                 .then(lower)
-                .when(pl.col(self.column) > upper)
+                .when(col > upper)
                 .then(upper)
-                .otherwise(pl.col(self.column))
+                .otherwise(col)
                 .alias(self.column)
             )
         elif self.method == "zscore":
-            mean = lf.select(pl.col(self.column).mean()).collect().item()
-            std = lf.select(pl.col(self.column).std()).collect().item()
+            mean = lf.select(col.mean()).collect().item()
+            std = lf.select(col.std()).collect().item()
+            if std is None or std == 0:
+                return lf
             threshold = self.factor
             return lf.with_columns(
-                pl.when((pl.col(self.column) - mean).abs() > threshold * std)
+                pl.when((col - mean).abs() > threshold * std)
                 .then(mean)
-                .otherwise(pl.col(self.column))
+                .otherwise(col)
                 .alias(self.column)
             )
         else:
             raise ValueError(f"Unknown outlier method: {self.method}")
+
 
 class DriftCorrector(CleanseRule):
     name = "drift_corrector"
@@ -79,16 +100,20 @@ class DriftCorrector(CleanseRule):
         self.parameters = {"column": column}
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
-        q_low = lf.select(pl.col(self.column).quantile(0.05)).collect().item()
-        q_high = lf.select(pl.col(self.column).quantile(0.95)).collect().item()
+        col = pl.col(self.column)
+        q_low = lf.select(col.quantile(0.05)).collect().item()
+        q_high = lf.select(col.quantile(0.95)).collect().item()
+        if q_low is None or q_high is None:
+            return lf
         return lf.with_columns(
-            pl.when(pl.col(self.column) < q_low)
+            pl.when(col < q_low)
             .then(q_low)
-            .when(pl.col(self.column) > q_high)
+            .when(col > q_high)
             .then(q_high)
-            .otherwise(pl.col(self.column))
+            .otherwise(col)
             .alias(self.column)
         )
+
 
 class Normalizer(CleanseRule):
     name = "normalizer"
@@ -99,25 +124,29 @@ class Normalizer(CleanseRule):
         self.parameters = {"column": column, "method": method}
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
+        col = pl.col(self.column)
         if self.method == "zscore":
-            mean = lf.select(pl.col(self.column).mean()).collect().item()
-            std = lf.select(pl.col(self.column).std()).collect().item()
-            return lf.with_columns(
-                ((pl.col(self.column) - mean) / std).alias(self.column)
-            )
+            mean = lf.select(col.mean()).collect().item()
+            std = lf.select(col.std()).collect().item()
+            if std is None or std == 0:
+                return lf
+            return lf.with_columns(((col - mean) / std).alias(self.column))
         elif self.method == "minmax":
-            min_val = lf.select(pl.col(self.column).min()).collect().item()
-            max_val = lf.select(pl.col(self.column).max()).collect().item()
-            return lf.with_columns(
-                ((pl.col(self.column) - min_val) / (max_val - min_val)).alias(self.column)
-            )
+            min_val = lf.select(col.min()).collect().item()
+            max_val = lf.select(col.max()).collect().item()
+            if min_val is None or max_val is None or max_val == min_val:
+                return lf
+            return lf.with_columns(((col - min_val) / (max_val - min_val)).alias(self.column))
         else:
             raise ValueError(f"Unknown normalization method: {self.method}")
+
 
 class CategoryCleaner(CleanseRule):
     name = "category_cleaner"
 
-    def __init__(self, column: str, max_categories: int = 50, rare_threshold: float = 0.01) -> None:
+    GARBAGE_PATTERN = re.compile(r"(non-existent|junk|test|dummy|delete|temp|xyz)", re.IGNORECASE)
+
+    def __init__(self, column: str, max_categories: int = 50, rare_threshold: float = 0.0) -> None:
         self.column = column
         self.max_categories = max_categories
         self.rare_threshold = rare_threshold
@@ -128,23 +157,34 @@ class CategoryCleaner(CleanseRule):
         }
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
+        col = pl.col(self.column)
         lf = lf.with_columns(
-                        (pl.col(self.column)).str.strip_chars().str.to_lowercase().alias(self.column)
+            col.str.strip_chars().str.to_lowercase().alias(self.column)
         )
-        freq = lf.group_by(self.column).agg(pl.count().alias("__cnt")).collect()
-        total = freq["__cnt"].sum()
-        freq = freq.with_columns((pl.col("__cnt") / total).alias("__freq"))
-        rare_vals = set(
-            freq.filter(pl.col("__freq") < self.rare_threshold)[self.column].to_list()
-        )
-        if rare_vals:
+
+        freq = lf.group_by(self.column).agg(pl.len()).collect()
+        all_vals = freq[self.column].to_list()
+
+        to_remove: set[str] = set()
+        for val in all_vals:
+            if val is None:                    
+                continue
+            if not isinstance(val, str):        
+                continue
+            if self.GARBAGE_PATTERN.search(val):
+                to_remove.add(val)
+            elif len(val) > 25 or (val.count("-") > 3):
+                to_remove.add(val)
+
+        if to_remove:
             lf = lf.with_columns(
-                pl.when(pl.col(self.column).is_in(rare_vals))
+                pl.when(col.is_in(to_remove))
                 .then(pl.lit("other"))
-                .otherwise(pl.col(self.column))
+                .otherwise(col)
                 .alias(self.column)
             )
         return lf
+
 
 class DateFormatter(CleanseRule):
     name = "date_formatter"
@@ -155,12 +195,13 @@ class DateFormatter(CleanseRule):
         self.parameters = {"column": column, "target_format": target_format}
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
+        col = pl.col(self.column)
         return lf.with_columns(
-            pl.col(self.column)
-            .str.strptime(pl.Date, strict=False)
+            col.str.strptime(pl.Date, strict=False)
             .dt.strftime(self.target_format)
             .alias(self.column)
         )
+
 
 class Deduplicator(CleanseRule):
     name = "deduplicator"
@@ -173,14 +214,21 @@ class Deduplicator(CleanseRule):
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
         return lf.unique(subset=self.subset)
 
+
 class TextNormalizer(CleanseRule):
     name = "text_normalizer"
 
-    def __init__(self, column: str, lower: bool = True, trim: bool = True) -> None:
+    def __init__(self, column: str, lower: bool = True, trim: bool = True, collapse_whitespace: bool = True) -> None:
         self.column = column
         self.lower = lower
         self.trim = trim
-        self.parameters = {"column": column, "lower": lower, "trim": trim}
+        self.collapse_whitespace = collapse_whitespace
+        self.parameters = {
+            "column": column,
+            "lower": lower,
+            "trim": trim,
+            "collapse_whitespace": collapse_whitespace,
+        }
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
         expr = pl.col(self.column)
@@ -188,7 +236,10 @@ class TextNormalizer(CleanseRule):
             expr = expr.str.strip_chars()
         if self.lower:
             expr = expr.str.to_lowercase()
+        if self.collapse_whitespace:
+            expr = expr.str.replace_all(r"\s+", " ")
         return lf.with_columns(expr.alias(self.column))
+
 
 class TypeCaster(CleanseRule):
     name = "type_caster"
