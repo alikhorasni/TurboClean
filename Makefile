@@ -13,7 +13,7 @@ typecheck:
 	mypy src
 
 test:
-	pytest tests --cov=pure_data
+	pytest tests --cov=turboclean
 
 bench:
 	python benchmarks/vs_pandas.py
