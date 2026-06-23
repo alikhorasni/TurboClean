@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "turboclean"
-version = "0.3.1"
+version = "0.3.2"
 description = "Ultra-fast, adaptive data purification engine that handle with zero-copy, lazy execution."
 authors = ["Ali Khorasani <alikhorasanishirehjeyni@gmail.com>"]
 license = "MIT"
@@ -15,7 +15,7 @@ pyarrow = ">=15.0.0"
 click = "^8.1.0"
 rich = "^13.7.0"
 pyyaml = "^6.0"
-polars-lts-cpu = { version = "^0.19.0", optional = true }
+polars-lts-cpu = ">=1.0,<2.0"
 sqlalchemy = { version = "^2.0", optional = true }
 openpyxl = { version = "^3.1.0", optional = true }
 pytest = { version = "^7.4.0", optional = true }
