@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "turboclean"
-version = "0.3.0"
+version = "0.3.1"
 description = "Ultra-fast, adaptive data purification engine that handle with zero-copy, lazy execution."
 authors = ["Ali Khorasani <alikhorasanishirehjeyni@gmail.com>"]
 license = "MIT"
