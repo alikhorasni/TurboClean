@@ -1,6 +1,6 @@
 # Architecture
 
-PureData follows a layered, strategy‑based architecture.
+TurboClean follows a layered, strategy‑based architecture.
 
 ## Layers
 
