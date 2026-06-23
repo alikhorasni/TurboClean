@@ -1,9 +1,12 @@
 from __future__ import annotations
+
 import mmap
 from pathlib import Path
 from typing import Any
+
 import polars as pl
 import pyarrow.parquet as pq
+
 from .contracts import Connector, FileFormat
 
 class IOAdapter:
@@ -27,7 +30,6 @@ class IOAdapter:
         elif fmt == FileFormat.JSON:
             return pl.scan_ndjson(path, **kwargs)
         else:
-            # Fallback for formats without native lazy scan
             return IOAdapter._read_eager(path, fmt).lazy()
 
     @staticmethod
@@ -36,7 +38,7 @@ class IOAdapter:
     ) -> int:
         """Estimate row count without full scan (best effort)."""
         if isinstance(source, Connector):
-            return 0  # not implemented for SQL yet
+            return 0
         path = Path(source)
         fmt = fmt or IOAdapter._detect_format(path)
         if fmt == FileFormat.PARQUET:
@@ -69,13 +71,12 @@ class IOAdapter:
         if fmt == FileFormat.EXCEL:
             import pandas as pd
             return pl.from_pandas(pd.read_excel(path))
-        # Other formats will be added incrementally
         raise NotImplementedError(f"Eager reader for {fmt} not yet implemented")
 
     @staticmethod
     def _read_sql(connector: Connector, **kwargs: Any) -> pl.LazyFrame:
         import pandas as pd
         query = kwargs.get("query", "SELECT * FROM table")
-        engine = connector  # assumed to be SQLAlchemy engine
+        engine = connector
         pdf = pd.read_sql(query, engine)
         return pl.from_pandas(pdf).lazy()
