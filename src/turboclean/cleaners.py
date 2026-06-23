@@ -129,7 +129,7 @@ class CategoryCleaner(CleanseRule):
 
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
         lf = lf.with_columns(
-            pl.col(self.column).str.strip().str.to_lowercase().alias(self.column)
+                        (pl.col(self.column)).str.strip_chars().str.to_lowercase().alias(self.column)
         )
         freq = lf.group_by(self.column).agg(pl.count().alias("__cnt")).collect()
         total = freq["__cnt"].sum()
@@ -185,7 +185,7 @@ class TextNormalizer(CleanseRule):
     def apply(self, lf: pl.LazyFrame) -> pl.LazyFrame:
         expr = pl.col(self.column)
         if self.trim:
-            expr = expr.str.strip()
+            expr = expr.str.strip_chars()
         if self.lower:
             expr = expr.str.to_lowercase()
         return lf.with_columns(expr.alias(self.column))
