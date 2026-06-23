@@ -31,9 +31,23 @@ class DataPurityEngine:
     ) -> DataPurityEngine:
         if not lazy:
             raise ValueError("TurboClean core only supports lazy=True")
+
+        if format == FileFormat.CSV or (format is None and str(source).endswith(".csv")):
+            kwargs.setdefault("truncate_ragged_lines", True)
+
         self._lf = IOAdapter.read_lazyframe(source, format, **kwargs)
         if not self._lf.collect_schema().names():
             raise EmptyDatasetError("The dataset has no columns.")
+
+        schema = self._lf.collect_schema()
+        for col_name, dtype in zip(schema.names(), schema.dtypes()):
+            if dtype in (pl.String, pl.Utf8):
+                self._lf = self._lf.with_columns(
+                    pl.when(pl.col(col_name) == "")
+                    .then(None)
+                    .otherwise(pl.col(col_name))
+                    .alias(col_name)
+                )
         return self
 
     @benchmark
@@ -45,7 +59,7 @@ class DataPurityEngine:
         return self._schema
 
     @benchmark
-    def suggest_cleansing_rules(self) -> list[CleanseRule]:
+    def suggest_cleansing_rules(self) -> DataPurityEngine:
         if self._lf is None:
             raise RuntimeError("No data loaded. Call load() first.")
         from .profiling import DynamicProfiler
@@ -56,12 +70,10 @@ class DataPurityEngine:
         for cprof in self._profile.column_profiles.values():
             rules.extend(cprof.suggested_rules)
         self._rules = rules
-        return rules
+        return self
 
     @benchmark
-    def apply_profile(
-        self, profile: DataProfile, in_place: bool = False
-    ) -> DataPurityEngine:
+    def apply_profile(self, profile: DataProfile, in_place: bool = False) -> DataPurityEngine:
         self._profile = profile
         return self
 
@@ -88,8 +100,17 @@ class DataPurityEngine:
 
     def write(self, destination: str | Path, format: Optional[FileFormat] = None) -> None:
         df = self._lf.collect() if self._lf is not None else pl.DataFrame()
-        dest = Path(destination)
+        dest = Path(destination).resolve()                
+        cwd = Path.cwd().resolve()
+        try:
+            dest.relative_to(cwd)
+        except ValueError:
+            raise ValueError(
+                f"Output path '{destination}' is outside the current working directory "
+                f"({cwd}). For security reasons, writing to external paths is not allowed."
+            )
 
+        dest.parent.mkdir(parents=True, exist_ok=True)
         if format is None:
             ext = dest.suffix.lower()
             format = {
@@ -104,7 +125,7 @@ class DataPurityEngine:
                     f"Cannot infer output format from extension '{ext}'. "
                     f"Please specify `format` explicitly."
                 )
-    
+
         if format == FileFormat.PARQUET:
             df.write_parquet(dest)
         elif format == FileFormat.CSV:
