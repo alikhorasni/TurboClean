@@ -1,19 +1,19 @@
 from __future__ import annotations
-from typing import Any, Dict, List
-from .contracts import CleanseRule
+from typing import Any
 from .cleaners import (
-    MissingCleaner,
-    OutlierCleaner,
-    DriftCorrector,
-    Normalizer,
     CategoryCleaner,
     DateFormatter,
     Deduplicator,
+    DriftCorrector,
+    MissingCleaner,
+    Normalizer,
+    OutlierCleaner,
     TextNormalizer,
     TypeCaster,
 )
+from .contracts import CleanseRule
 
-_RULE_MAP = {
+_RULE_MAP: dict[str, type[CleanseRule]] = {
     "missing": MissingCleaner,
     "outlier": OutlierCleaner,
     "drift": DriftCorrector,
@@ -25,10 +25,9 @@ _RULE_MAP = {
     "type_cast": TypeCaster,
 }
 
-
-def rule_factory(config: List[Dict[str, Any]]) -> List[CleanseRule]:
+def rule_factory(config: list[dict[str, Any]]) -> list[CleanseRule]:
     """Convert a list of configuration dictionaries into cleansing rules."""
-    rules: List[CleanseRule] = []
+    rules: list[CleanseRule] = []
     for entry in config:
         rule_type = entry.pop("type")
         cls = _RULE_MAP.get(rule_type)
