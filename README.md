@@ -4,7 +4,7 @@
 [![PyPI version](https://badge.fury.io/py/puredata.svg)](https://badge.fury.io/py/puredata)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 ![Benchmark](https://img.shields.io/badge/speed-5x%20faster%20than%20Pandas-success)
-![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
+![License](https://img.shields.io/badge/License-MIT.svg)
 
 <p align="center">
   <img src="docs/logo.png" width="300"/>
