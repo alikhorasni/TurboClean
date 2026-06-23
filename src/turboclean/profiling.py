@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
+import re
 
 import polars as pl
 import pyarrow as pa
@@ -42,20 +43,25 @@ class ConcreteDataProfile(DataProfile):
 
 
 class DynamicProfiler:
-    """Statistical profiler with automatic distribution drift detection."""
+    """Statistical profiler with automatic distribution drift and date detection."""
+
+    DATE_PATTERNS = [
+        re.compile(r"(\d{4}[/-]\d{2}[/-]\d{2})"),
+        re.compile(r"(\d{2}[/-]\d{2}[/-]\d{4})"),
+        re.compile(r"(\d{2}\.\d{2}\.\d{4})"),
+        re.compile(r"([A-Z][a-z]+ \d{1,2}, \d{4})"),
+    ]
 
     def __init__(self, lf: pl.LazyFrame) -> None:
         self._lf = lf
 
     @benchmark
     def generate_profile(self) -> ConcreteDataProfile:
-        # Schema from first row (limit avoids deprecated fetch)
         sample = self._lf.limit(1).collect()
         schema = sample.to_arrow().schema
         columns = self._lf.collect_schema().names()
         n_rows = self._lf.select(pl.len()).collect().item()
 
-        # Single‑pass aggregated statistics for all numeric columns
         aggs = []
         for col in columns:
             dtype = schema.field(col).type
@@ -72,10 +78,22 @@ class DynamicProfiler:
         stats_df = self._lf.select(aggs).collect()
         stats_dict = stats_df.to_dicts()[0]
 
-        # Detect drift for numeric columns (fixed slice approach)
         drift_scores = self._compute_drift_scores(columns, schema, n_rows)
 
-        # Build profiles and rule suggestions
+        duplicate_count = self._lf.collect().shape[0] - self._lf.unique().collect().shape[0]
+        has_duplicates = duplicate_count > 0
+
+        from .cleaners import (
+            MissingCleaner,
+            OutlierCleaner,
+            DriftCorrector,
+            CategoryCleaner,
+            DateFormatter,
+            TextNormalizer,
+            Deduplicator,
+            TypeCaster,
+        )
+
         profiles: dict[str, ConcreteColumnProfile] = {}
         for col in columns:
             dtype = schema.field(col).type
@@ -85,6 +103,17 @@ class DynamicProfiler:
             drift_score = drift_scores.get(col)
             suggested_rules: list[CleanseRule] = []
 
+            # Missing values
+            if null_ratio > 0.0:
+                if pa.types.is_string(dtype) or pa.types.is_large_string(dtype):
+                    if self._looks_like_date(col, schema):
+                        suggested_rules.append(MissingCleaner(column=col, strategy="drop"))
+                    elif not self._is_free_text(col):
+                        suggested_rules.append(MissingCleaner(column=col, strategy="fill", fill_value="unknown"))
+                else:
+                    suggested_rules.append(MissingCleaner(column=col, strategy="mean"))
+
+            # Numeric columns
             if pa.types.is_integer(dtype) or pa.types.is_floating(dtype):
                 basic_stats = {
                     "mean": stats_dict.get(f"__mean_{col}"),
@@ -94,21 +123,29 @@ class DynamicProfiler:
                     "q25": stats_dict.get(f"__q25_{col}"),
                     "q75": stats_dict.get(f"__q75_{col}"),
                 }
-                # Heuristic rule generation
-                from .cleaners import (
-                    DriftCorrector,
-                    MissingCleaner,
-                    Normalizer,
-                    OutlierCleaner,
-                )
-                if null_ratio > 0.05:
-                    suggested_rules.append(MissingCleaner(column=col, strategy="mean"))
                 if abs(basic_stats.get("skew", 0)) > 1.0 or abs(basic_stats.get("kurt", 0)) > 3.0:
                     suggested_rules.append(OutlierCleaner(column=col, method="iqr"))
                 if drift_score is not None and drift_score > 0.1:
                     suggested_rules.append(DriftCorrector(column=col))
-                if suggested_rules:
-                    suggested_rules.append(Normalizer(column=col, method="zscore"))
+                if pa.types.is_integer(dtype):
+                    suggested_rules.append(TypeCaster(column=col, target_type=pl.Int64))
+
+            # String columns
+            if pa.types.is_string(dtype) or pa.types.is_large_string(dtype):
+                is_free_text = self._is_free_text(col)
+                if is_free_text:
+                    suggested_rules.append(TextNormalizer(column=col))
+                else:
+                    distinct = self._lf.select(pl.col(col).n_unique()).collect().item()
+                    if distinct < 30:
+                        suggested_rules.append(CategoryCleaner(column=col))
+                    else:
+                        suggested_rules.append(TextNormalizer(column=col))
+
+                if self._looks_like_date(col, schema):
+                    suggested_rules.append(DateFormatter(column=col))
+                    if null_ratio > 0.0:
+                        suggested_rules.append(MissingCleaner(column=col, strategy="drop"))
 
             profiles[col] = ConcreteColumnProfile(
                 name=col,
@@ -120,16 +157,37 @@ class DynamicProfiler:
                 basic_stats=basic_stats,
             )
 
+        if has_duplicates:
+            first_col = columns[0] if columns else None
+            if first_col:
+                profiles[first_col].suggested_rules.append(Deduplicator())
+
         return ConcreteDataProfile(schema=schema, column_profiles=profiles)
+
+    def _is_free_text(self, col: str) -> bool:
+        return any(
+            word in col.lower()
+            for word in ("note", "text", "comment", "desc", "description", "message")
+        )
+
+    def _looks_like_date(self, col: str, schema: pa.Schema) -> bool:
+        name_lower = col.lower()
+        if any(word in name_lower for word in ("date", "time", "timestamp", "dt")):
+            return True
+        try:
+            sample_vals = self._lf.select(pl.col(col).drop_nulls().limit(10)).collect().to_series().to_list()
+            for val in sample_vals:
+                if isinstance(val, str):
+                    for pattern in self.DATE_PATTERNS:
+                        if pattern.match(val.strip()):
+                            return True
+        except Exception:
+            pass
+        return False
 
     def _compute_drift_scores(
         self, columns: list[str], schema: pa.Schema, n_rows: int
     ) -> dict[str, float | None]:
-        """Compute distribution drift by comparing first half vs second half.
-
-        Uses separate LazyFrame slices to avoid a Polars 1.x optimizer
-        panic when `slice` appears inside aggregation expressions.
-        """
         if n_rows < 2:
             return {col: None for col in columns}
 
@@ -142,11 +200,9 @@ class DynamicProfiler:
         if not numeric_cols:
             return {col: None for col in columns}
 
-        # Build two independent LazyFrames – no slice inside aggs
         lf_early = self._lf.slice(0, half)
         lf_late = self._lf.slice(half, n_rows - half)
 
-        # Compute stats for each half with a single select each
         early_expr = []
         late_expr = []
         for col in numeric_cols:
@@ -177,7 +233,6 @@ class DynamicProfiler:
             else:
                 drift_scores[col] = None
 
-        # Non‑numeric columns get None
         for col in columns:
             if col not in drift_scores:
                 drift_scores[col] = None
