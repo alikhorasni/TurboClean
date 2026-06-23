@@ -9,6 +9,7 @@ import pyarrow as pa
 from .contracts import CleanseRule, ColumnProfile, DataProfile
 from .utils import benchmark
 
+
 @dataclass
 class ConcreteColumnProfile(ColumnProfile):
     name: str
@@ -27,6 +28,7 @@ class ConcreteColumnProfile(ColumnProfile):
         )
         return f"{self.name} ({self.dtype}): {self.null_count} nulls ({self.null_ratio:.1%}), {drift}"
 
+
 @dataclass
 class ConcreteDataProfile(DataProfile):
     schema: pa.Schema
@@ -38,6 +40,7 @@ class ConcreteDataProfile(DataProfile):
             lines.append(prof.summary())
         return "\n".join(lines)
 
+
 class DynamicProfiler:
     """Statistical profiler with automatic distribution drift detection."""
 
@@ -46,11 +49,13 @@ class DynamicProfiler:
 
     @benchmark
     def generate_profile(self) -> ConcreteDataProfile:
-        sample = self._lf.fetch(1)
+        # Schema from first row (limit avoids deprecated fetch)
+        sample = self._lf.limit(1).collect()
         schema = sample.to_arrow().schema
-        columns = self._lf.columns
-        n_rows = self._lf.select(pl.count()).collect().item()
+        columns = self._lf.collect_schema().names()
+        n_rows = self._lf.select(pl.len()).collect().item()
 
+        # Single‑pass aggregated statistics for all numeric columns
         aggs = []
         for col in columns:
             dtype = schema.field(col).type
@@ -67,8 +72,10 @@ class DynamicProfiler:
         stats_df = self._lf.select(aggs).collect()
         stats_dict = stats_df.to_dicts()[0]
 
+        # Detect drift for numeric columns (fixed slice approach)
         drift_scores = self._compute_drift_scores(columns, schema, n_rows)
 
+        # Build profiles and rule suggestions
         profiles: dict[str, ConcreteColumnProfile] = {}
         for col in columns:
             dtype = schema.field(col).type
@@ -87,6 +94,7 @@ class DynamicProfiler:
                     "q25": stats_dict.get(f"__q25_{col}"),
                     "q75": stats_dict.get(f"__q75_{col}"),
                 }
+                # Heuristic rule generation
                 from .cleaners import (
                     DriftCorrector,
                     MissingCleaner,
@@ -117,6 +125,11 @@ class DynamicProfiler:
     def _compute_drift_scores(
         self, columns: list[str], schema: pa.Schema, n_rows: int
     ) -> dict[str, float | None]:
+        """Compute distribution drift by comparing first half vs second half.
+
+        Uses separate LazyFrame slices to avoid a Polars 1.x optimizer
+        panic when `slice` appears inside aggregation expressions.
+        """
         if n_rows < 2:
             return {col: None for col in columns}
 
@@ -129,25 +142,32 @@ class DynamicProfiler:
         if not numeric_cols:
             return {col: None for col in columns}
 
+        # Build two independent LazyFrames – no slice inside aggs
+        lf_early = self._lf.slice(0, half)
+        lf_late = self._lf.slice(half, n_rows - half)
+
+        # Compute stats for each half with a single select each
         early_expr = []
         late_expr = []
         for col in numeric_cols:
             early_expr.extend([
-                pl.col(col).slice(0, half).mean().alias(f"__early_mean_{col}"),
-                pl.col(col).slice(0, half).std().alias(f"__early_std_{col}"),
+                pl.col(col).mean().alias(f"__early_mean_{col}"),
+                pl.col(col).std().alias(f"__early_std_{col}"),
             ])
             late_expr.extend([
-                pl.col(col).slice(half).mean().alias(f"__late_mean_{col}"),
-                pl.col(col).slice(half).std().alias(f"__late_std_{col}"),
+                pl.col(col).mean().alias(f"__late_mean_{col}"),
+                pl.col(col).std().alias(f"__late_std_{col}"),
             ])
-        stats = self._lf.select(early_expr + late_expr).collect().to_dicts()[0]
+
+        early_stats = lf_early.select(early_expr).collect().to_dicts()[0]
+        late_stats = lf_late.select(late_expr).collect().to_dicts()[0]
 
         drift_scores: dict[str, float | None] = {}
         for col in numeric_cols:
-            early_mean = stats.get(f"__early_mean_{col}")
-            early_std = stats.get(f"__early_std_{col}")
-            late_mean = stats.get(f"__late_mean_{col}")
-            late_std = stats.get(f"__late_std_{col}")
+            early_mean = early_stats.get(f"__early_mean_{col}")
+            early_std = early_stats.get(f"__early_std_{col}")
+            late_mean = late_stats.get(f"__late_mean_{col}")
+            late_std = late_stats.get(f"__late_std_{col}")
             if early_mean is not None and late_mean is not None:
                 denom = (early_std or 0) + (late_std or 0)
                 if denom > 0:
@@ -157,6 +177,7 @@ class DynamicProfiler:
             else:
                 drift_scores[col] = None
 
+        # Non‑numeric columns get None
         for col in columns:
             if col not in drift_scores:
                 drift_scores[col] = None
