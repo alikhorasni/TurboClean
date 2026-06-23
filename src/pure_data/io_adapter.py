@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import mmap
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import polars as pl
 import pyarrow.parquet as pq
