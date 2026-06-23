@@ -1,5 +1,3 @@
-import polars as pl
-from pure_data.engine import DataPurityEngine
 from pure_data.cleaners import MissingCleaner
 
 def test_load_and_clean(large_dirty_df, engine):
@@ -17,5 +15,5 @@ def test_suggest_rules(engine, large_dirty_df):
 def test_write_parquet(tmp_path, large_dirty_df, engine):
     engine._lf = large_dirty_df.lazy()
     out = tmp_path / "test.parquet"
-    engine.write(out, "parquet")  # type: ignore
+    engine.write(out, "parquet")
     assert out.exists()
