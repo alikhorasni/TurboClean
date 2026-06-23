@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 import polars as pl
 import pyarrow as pa
@@ -10,8 +10,6 @@ from .contracts import CleanseRule, Connector, DataProfile, FileFormat
 from .exceptions import EmptyDatasetError
 from .io_adapter import IOAdapter
 from .utils import benchmark
-
-Self = TypeVar("Self", bound="DataPurityEngine")
 
 class DataPurityEngine:
     """Core engine for intelligent data screening, cleaning, and quality improvement."""
@@ -29,7 +27,7 @@ class DataPurityEngine:
         format: FileFormat | None = None,
         lazy: bool = True,
         **kwargs: Any,
-    ) -> Self:
+    ) -> DataPurityEngine:
         if not lazy:
             raise ValueError("PureData core only supports lazy=True")
         self._lf = IOAdapter.read_lazyframe(source, format, **kwargs)
@@ -59,12 +57,12 @@ class DataPurityEngine:
         return rules
 
     @benchmark
-    def apply_profile(self, profile: DataProfile, in_place: bool = False) -> Self:
+    def apply_profile(self, profile: DataProfile, in_place: bool = False) -> DataPurityEngine:
         self._profile = profile
         return self
 
     @benchmark
-    def clean(self, rules: list[CleanseRule] | None = None) -> Self:
+    def clean(self, rules: list[CleanseRule] | None = None) -> DataPurityEngine:
         if self._lf is None:
             raise RuntimeError("No data loaded. Call load() first.")
         apply_rules = rules or self._rules
@@ -72,7 +70,7 @@ class DataPurityEngine:
             self._lf = rule.apply(self._lf)
         return self
 
-    def pipe(self, rule: CleanseRule) -> Self:
+    def pipe(self, rule: CleanseRule) -> DataPurityEngine:
         """Apply a single cleansing rule and return self for method chaining."""
         if self._lf is None:
             raise RuntimeError("No data loaded. Call load() first.")
@@ -88,10 +86,10 @@ class DataPurityEngine:
         df = self._lf.collect() if self._lf is not None else pl.DataFrame()
         dest = Path(destination)
         if format == FileFormat.PARQUET:
-            df.to_parquet(dest)
+            df.to_parquet(dest)      # type: ignore[attr-defined]
         elif format == FileFormat.CSV:
-            df.to_csv(dest)
+            df.to_csv(dest)          # type: ignore[attr-defined]
         elif format == FileFormat.JSON:
-            df.to_ndjson(dest)
+            df.to_ndjson(dest)       # type: ignore[attr-defined]
         else:
             raise ValueError(f"Unsupported output format: {format}")
