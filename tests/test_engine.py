@@ -1,5 +1,6 @@
-from pure_data.cleaners import MissingCleaner
-from pure_data.contracts import FileFormat
+from turboclean.cleaners import MissingCleaner
+from turboclean.contracts import FileFormat
+
 
 def test_load_and_clean(large_dirty_df, engine):
     lf = large_dirty_df.lazy()
