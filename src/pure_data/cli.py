@@ -9,16 +9,15 @@ from typing import Optional
 import click
 import yaml
 from rich.console import Console
-from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from .engine import DataPurityEngine
+from rich.table import Table
+from .cleaners import MissingCleaner, Normalizer, OutlierCleaner
 from .contracts import FileFormat
-from .rule_factory import rule_factory
-from .cleaners import MissingCleaner, OutlierCleaner, Normalizer
+from .engine import DataPurityEngine
 from .reporting import ReportGenerator
+from .rule_factory import rule_factory
 
 console = Console()
-
 
 def _detect_format(path: str) -> FileFormat:
     ext = Path(path).suffix.lower()
@@ -33,7 +32,6 @@ def _detect_format(path: str) -> FileFormat:
     }
     return mapping.get(ext, FileFormat.CSV)
 
-
 @click.group()
 @click.version_option(version="0.3.0", prog_name="PureData")
 def main() -> None:
@@ -46,55 +44,27 @@ def main() -> None:
     puredata profile dirty.json --report profile.md
     """
 
-
 @main.command()
 @click.argument("input", type=click.Path(exists=True, readable=True))
 @click.argument("output", type=click.Path())
-@click.option(
-    "--missing",
-    type=click.Choice(
-        ["drop", "mean", "median", "mode", "forward_fill", "backward_fill"]
-    ),
-    help="Strategy for handling missing values.",
-)
-@click.option(
-    "--outliers", type=click.Choice(["iqr", "zscore"]), help="Outlier detection method."
-)
-@click.option(
-    "--normalize/--no-normalize", default=False, help="Apply z-score normalisation."
-)
-@click.option(
-    "--config",
-    type=click.Path(exists=True),
-    help="YAML file with custom cleaning rules.",
-)
-@click.option(
-    "--auto-magic",
-    is_flag=True,
-    default=False,
-    help="Let the engine analyse data and choose the best strategies automatically.",
-)
-@click.option("--progress/--no-progress", default=True, help="Show a progress bar.")
+@click.option("--missing", type=click.Choice(["drop", "mean", "median", "mode", "forward_fill", "backward_fill"]),
+              help="Strategy for handling missing values.")
+@click.option("--outliers", type=click.Choice(["iqr", "zscore"]),
+              help="Outlier detection method.")
+@click.option("--normalize/--no-normalize", default=False, help="Apply z-score normalisation.")
+@click.option("--config", type=click.Path(exists=True), help="YAML file with custom cleaning rules.")
+@click.option("--auto-magic", is_flag=True, default=False,
+              help="Let the engine analyse data and choose the best strategies automatically.")
 def clean(
-    input: str,
-    output: str,
-    missing: Optional[str],
-    outliers: Optional[str],
-    normalize: bool,
-    config: Optional[str],
-    auto_magic: bool,
-    progress: bool,
+    input: str, output: str, missing: str | None, outliers: str | None,
+    normalize: bool, config: str | None, auto_magic: bool
 ) -> None:
     """Clean a dataset and write the result to OUTPUT."""
     engine = DataPurityEngine()
     in_fmt = _detect_format(input)
     out_fmt = _detect_format(output)
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as prog:
+    with Progress(SpinnerColumn(), TextColumn("[progress.description]{task.description}"), transient=True) as prog:
         task = prog.add_task("Loading data...", start=False)
         prog.start_task(task)
         engine.load(input, format=in_fmt)
@@ -102,7 +72,7 @@ def clean(
 
         rules = []
         if config:
-            with open(config, "r") as f:
+            with open(config) as f:
                 cfg = yaml.safe_load(f)
             rules = rule_factory(cfg)
             engine.clean(rules)
@@ -116,31 +86,24 @@ def clean(
                 num_cols = [c for c in cols if lf.schema[c].is_numeric()]
                 for col in num_cols:
                     if missing:
-                        rules.append(
-                            MissingCleaner(col, strategy=missing)
-                        )  # noqa: F821
+                        rules.append(MissingCleaner(col, strategy=missing))
                     if outliers:
-                        rules.append(OutlierCleaner(col, method=outliers))  # noqa: F821
+                        rules.append(OutlierCleaner(col, method=outliers))
                     if normalize:
-                        rules.append(Normalizer(col))  # noqa: F821
+                        rules.append(Normalizer(col))
                 engine.clean(rules)
 
         prog.update(task, description="Writing output...")
         engine.write(output, out_fmt)
         prog.update(task, description="Done!")
 
-    console.print(
-        f"[bold green]✔[/bold green] Cleaned data saved to [bold]{output}[/bold]"
-    )
-
+    console.print(f"[bold green]✔[/bold green] Cleaned data saved to [bold]{output}[/bold]")
 
 @main.command()
 @click.argument("input", type=click.Path(exists=True, readable=True))
-@click.option(
-    "--output", "-o", type=click.Path(), help="Save report to file (Markdown)."
-)
+@click.option("--output", "-o", type=click.Path(), help="Save report to file (Markdown).")
 @click.option("--json", "output_json", type=click.Path(), help="Save report as JSON.")
-def profile(input: str, output: Optional[str], output_json: Optional[str]) -> None:
+def profile(input: str, output: str | None, output_json: str | None) -> None:
     """Generate a detailed data quality profile."""
     engine = DataPurityEngine()
     engine.load(input)
@@ -152,14 +115,13 @@ def profile(input: str, output: Optional[str], output_json: Optional[str]) -> No
 
     if output:
         with open(output, "w") as f:
-            f.write(ReportGenerator.generate_markdown(engine._profile))  # noqa: F821
+            f.write(ReportGenerator.generate_markdown(engine._profile))
         console.print(f"[bold green]✔[/bold green] Report saved to {output}")
     if output_json:
         with open(output_json, "w") as f:
-            f.write(ReportGenerator.generate_json(engine._profile))  # noqa: F821
+            f.write(ReportGenerator.generate_json(engine._profile))
         console.print(f"[bold green]✔[/bold green] JSON report saved to {output_json}")
 
-    # Always print a summary table
     table = Table(title="Column Overview")
     table.add_column("Column", style="cyan")
     table.add_column("Type")
@@ -168,21 +130,11 @@ def profile(input: str, output: Optional[str], output_json: Optional[str]) -> No
     table.add_column("Suggested Rules")
 
     for col, prof in engine._profile.column_profiles.items():
-        drift = (
-            f"{prof.distribution_drift_score:.3f}"
-            if prof.distribution_drift_score is not None
-            else "N/A"
-        )
-        table.add_row(
-            col,
-            str(prof.dtype),
-            str(prof.null_count),
-            drift,
-            ", ".join(r.name for r in prof.suggested_rules),
-        )
+        drift = f"{prof.distribution_drift_score:.3f}" if prof.distribution_drift_score is not None else "N/A"
+        table.add_row(col, str(prof.dtype), str(prof.null_count), drift,
+                      ", ".join(r.name for r in prof.suggested_rules))
 
     console.print(table)
-
 
 if __name__ == "__main__":
     main()
