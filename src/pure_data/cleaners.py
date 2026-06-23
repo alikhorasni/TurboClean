@@ -6,6 +6,7 @@ import polars as pl
 
 from .contracts import CleanseRule
 
+
 class MissingCleaner(CleanseRule):
     name = "missing_cleaner"
 
