@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
 import re
+from typing import Any
 
-import polars as pl
-
+from .compat import pl
 from .contracts import CleanseRule
 
 
@@ -167,9 +166,9 @@ class CategoryCleaner(CleanseRule):
 
         to_remove: set[str] = set()
         for val in all_vals:
-            if val is None:                    
+            if val is None:
                 continue
-            if not isinstance(val, str):        
+            if not isinstance(val, str):
                 continue
             if self.GARBAGE_PATTERN.search(val):
                 to_remove.add(val)
